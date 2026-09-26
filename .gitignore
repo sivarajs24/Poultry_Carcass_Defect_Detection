@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Pytest
+.pytest_cache/
+
+# Datasets and runs
+datasets/
+runs/
+
+# Uploads and outputs
+web/uploads/
+web/outputs/
+
+# Large model files
+*.pt
+*.onnx
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# VS Code / IDE
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db

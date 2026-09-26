@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PoultryGuard — Carcass Defect Detection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐔</text></svg>" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar skeu-panel">
+      <div class="brand">
+        <div class="brand-icon">PG</div>
+        <div>
+          <h1>PoultryGuard</h1>
+          <p>YOLOv8 Defect Inspector</p>
+        </div>
+      </div>
+
+      <nav class="nav-tabs" role="tablist">
+        <button class="nav-tab active" data-tab="camera" role="tab" aria-selected="true">
+          <span class="tab-icon">📷</span> Live Camera
+        </button>
+        <button class="nav-tab" data-tab="image" role="tab">
+          <span class="tab-icon">🖼️</span> Image Upload
+        </button>
+        <button class="nav-tab" data-tab="video" role="tab">
+          <span class="tab-icon">🎬</span> Video Analysis
+        </button>
+        <button class="nav-tab" data-tab="analytics" role="tab">
+          <span class="tab-icon">📊</span> Analytics
+        </button>
+      </nav>
+
+      <section class="controls skeu-inset">
+        <h3>Detection Settings</h3>
+        <label class="control-row">
+          <span>Confidence</span>
+          <input type="range" id="confSlider" min="0.1" max="0.9" step="0.05" value="0.35" />
+          <output id="confValue">0.35</output>
+        </label>
+        <label class="control-row">
+          <span>IoU Threshold</span>
+          <input type="range" id="iouSlider" min="0.1" max="0.9" step="0.05" value="0.45" />
+          <output id="iouValue">0.45</output>
+        </label>
+        <label class="control-row checkbox-row">
+          <input type="checkbox" id="showOverlay" checked />
+          <span>Show bounding boxes</span>
+        </label>
+      </section>
+
+      <section class="model-status skeu-inset" id="modelStatus">
+        <h3>System Status</h3>
+        <div class="status-line">
+          <span class="status-dot loading" id="statusDot"></span>
+          <span id="statusText">Connecting…</span>
+        </div>
+        <p class="model-path" id="modelPath">—</p>
+      </section>
+
+      <section class="class-legend skeu-inset">
+        <h3>Defect Classes</h3>
+        <ul id="classLegend"></ul>
+      </section>
+    </aside>
+
+    <main class="workspace">
+      <header class="top-bar skeu-panel">
+        <div>
+          <h2 id="panelTitle">Live Camera Detection</h2>
+          <p id="panelSubtitle">Real-time inspection via webcam</p>
+        </div>
+        <div class="metrics" id="headerMetrics">
+          <div class="metric-chip">
+            <span class="metric-label">FPS</span>
+            <span class="metric-value" id="metricFps">—</span>
+          </div>
+          <div class="metric-chip">
+            <span class="metric-label">Inference</span>
+            <span class="metric-value" id="metricInference">—</span>
+          </div>
+          <div class="metric-chip">
+            <span class="metric-label">Defects</span>
+            <span class="metric-value" id="metricDefects">0</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Camera tab -->
+      <section class="tab-panel active" id="panel-camera" data-panel="camera">
+        <div class="viewport-grid">
+          <div class="viewport skeu-screen">
+            <div class="screen-label">Input Feed</div>
+            <video id="cameraVideo" autoplay playsinline muted></video>
+            <canvas id="cameraCanvas" class="hidden"></canvas>
+            <div class="empty-state hidden" id="cameraEmpty">
+              <p>Camera access required</p>
+              <button class="btn skeu-btn primary" id="startCameraBtn">Enable Camera</button>
+            </div>
+          </div>
+          <div class="viewport skeu-screen">
+            <div class="screen-label">AI Detection Output</div>
+            <img id="cameraOutput" alt="Detection output" />
+            <div class="empty-state" id="cameraOutputEmpty">
+              <p>Start detection to see annotated frames</p>
+            </div>
+          </div>
+        </div>
+        <div class="action-bar">
+          <button class="btn skeu-btn primary" id="toggleCameraDetect">Start Live Detection</button>
+          <button class="btn skeu-btn" id="captureSnapshot">Capture Snapshot</button>
+          <button class="btn skeu-btn danger" id="stopCameraBtn" disabled>Stop Camera</button>
+        </div>
+      </section>
+
+      <!-- Image tab -->
+      <section class="tab-panel" id="panel-image" data-panel="image">
+        <div class="upload-zone skeu-inset" id="imageDropZone">
+          <input type="file" id="imageInput" accept="image/*" hidden />
+          <div class="upload-content">
+            <span class="upload-icon">⬆</span>
+            <p>Drag & drop an image here, or <button type="button" class="link-btn" id="imageBrowseBtn">browse files</button></p>
+            <span class="upload-hint">JPG, PNG, WEBP up to 120 MB</span>
+          </div>
+        </div>
+        <div class="viewport-grid hidden" id="imageResults">
+          <div class="viewport skeu-screen">
+            <div class="screen-label">Original</div>
+            <img id="imageOriginal" alt="Original" />
+          </div>
+          <div class="viewport skeu-screen">
+            <div class="screen-label">Detected Defects</div>
+            <img id="imageOutput" alt="Detection result" />
+          </div>
+        </div>
+        <div class="action-bar">
+          <button class="btn skeu-btn primary" id="runImageDetect" disabled>Analyze Image</button>
+          <button class="btn skeu-btn" id="clearImage" disabled>Clear</button>
+        </div>
+      </section>
+
+      <!-- Video tab -->
+      <section class="tab-panel" id="panel-video" data-panel="video">
+        <div class="upload-zone skeu-inset" id="videoDropZone">
+          <input type="file" id="videoInput" accept="video/*" hidden />
+          <div class="upload-content">
+            <span class="upload-icon">🎥</span>
+            <p>Drop a processing-line video, or <button type="button" class="link-btn" id="videoBrowseBtn">select file</button></p>
+            <span class="upload-hint">MP4, AVI, MOV, WEBM</span>
+          </div>
+        </div>
+        <div class="progress-wrap hidden" id="videoProgressWrap">
+          <div class="progress-track skeu-inset">
+            <div class="progress-fill" id="videoProgressBar"></div>
+          </div>
+          <p id="videoProgressText">Processing frames…</p>
+        </div>
+        <div class="viewport-grid hidden" id="videoResults">
+          <div class="viewport skeu-screen full-width">
+            <div class="screen-label">Annotated Output</div>
+            <video id="videoOutput" controls></video>
+          </div>
+        </div>
+        <div class="action-bar">
+          <button class="btn skeu-btn primary" id="runVideoDetect" disabled>Process Video</button>
+          <button class="btn skeu-btn" id="clearVideo" disabled>Reset</button>
+        </div>
+      </section>
+
+      <!-- Analytics tab -->
+      <section class="tab-panel" id="panel-analytics" data-panel="analytics">
+        <div class="viewport skeu-screen full-width" style="padding: 2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div class="screen-label" style="position: static;">Defect Distribution</div>
+            <button class="btn skeu-btn" id="refreshAnalyticsBtn">Refresh Data</button>
+          </div>
+          <div style="height: 400px; width: 100%;">
+            <canvas id="analyticsChart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <aside class="results-drawer skeu-panel" id="resultsDrawer">
+        <h3>Detection Log</h3>
+        <div class="results-summary" id="resultsSummary">
+          <p class="muted">No detections yet. Run an inspection to populate results.</p>
+        </div>
+        <ul class="detection-list" id="detectionList"></ul>
+      </aside>
+    </main>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
